@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebAuthn Example</title>
+</head>
+<body>
+    <h1>WebAuthn Example</h1>
+
+    <h2>Registration</h2>
+    <input type="text" id="regUsername" placeholder="Username">
+    <button onclick="register()">Register</button>
+
+    <h2>Login</h2>
+    <input type="text" id="loginUsername" placeholder="Username">
+    <button onclick="login()">Login</button>
+
+    <script>
+        function register() {
+            const username = document.getElementById('regUsername').value;
+
+            fetch(`/webauthn/register/begin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username })
+            })
+                .then(response => response.json())
+                .then(options => {
+                    options.publicKey.challenge = new Uint8Array(options.publicKey.challenge);
+                    options.publicKey.user.id = new Uint8Array(options.publicKey.user.id);
+                    options.publicKey.user.displayName = options.publicKey.user.displayName;
+                    return navigator.credentials.create({ publicKey: options.publicKey });
+                })
+                .then(credential => {
+                    fetch('/webauthn/register/finish', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: credential.id,
+                            rawId: Array.from(new Uint8Array(credential.rawId)),
+                            response: {
+                                attestationObject: Array.from(new Uint8Array(credential.response.attestationObject)),
+                                clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON))
+                            }
+                        })
+                    })
+                    .then(response => response.text())
+                    .then(console.log);
+                })
+                .catch(console.error);
+        }
+
+        function login() {
+            const username = document.getElementById('loginUsername').value;
+
+            fetch(`/webauthn/login/begin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username })
+            })
+                .then(response => response.json())
+                .then(options => {
+                    options.publicKey.challenge = new Uint8Array(options.publicKey.challenge);
+                    options.publicKey.allowCredentials.forEach(cred => {
+                        cred.id = new Uint8Array(cred.id);
+                    });
+                    return navigator.credentials.get({ publicKey: options.publicKey });
+                })
+                .then(credential => {
+                    fetch('/webauthn/login/finish', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: credential.id,
+                            rawId: Array.from(new Uint8Array(credential.rawId)),
+                            response: {
+                                authenticatorData: Array.from(new Uint8Array(credential.response.authenticatorData)),
+                                clientDataJSON: Array.from(new Uint8Array(credential.response.clientDataJSON)),
+                                signature: Array.from(new Uint8Array(credential.response.signature)),
+                                userHandle: Array.from(new Uint8Array(credential.response.userHandle))
+                            }
+                        })
+                    })
+                    .then(response => response.text())
+                    .then(console.log);
+                })
+                .catch(console.error);
+        }
+    </script>
+</body>
+</html>
